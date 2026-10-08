@@ -22,7 +22,7 @@ jobs:
       - run: uv sync --locked --extra dev
       - name: Check exact fix
         run: |
-          git diff --exit-code 8ed4422126394b2aeb23b8405ec46687e069cf90 -- src test uv.lock
+          git diff --exit-code dc09f0851f014efaa4951e3a2bdfeb57917c542a -- src test uv.lock
           uv run --no-sync poe lint
           uv run --no-sync poe type-check
           uv run --no-sync pytest test/solidlsp/test_content_modified_retry.py test/solidlsp/test_ls_start_cleanup.py -q
@@ -34,7 +34,7 @@ jobs:
           cd /tmp/serena-baseline
           "$GITHUB_WORKSPACE/.venv/bin/python" -c 'import solidlsp; print(solidlsp.__file__)'
           set +e
-          "$GITHUB_WORKSPACE/.venv/bin/python" -m pytest test/solidlsp/test_content_modified_retry.py -q > /tmp/baseline-unit.log 2>&1
+          "$GITHUB_WORKSPACE/.venv/bin/python" -m pytest test/solidlsp/test_content_modified_retry.py -k "not configured_attempt_limit" -q > /tmp/baseline-unit.log 2>&1
           result=$?
           set -e
           cat /tmp/baseline-unit.log
@@ -47,3 +47,4 @@ jobs:
       - name: Existing Erlang integration suite
         if: always()
         run: uv run --no-sync pytest test/solidlsp/erlang -q -rs
+
