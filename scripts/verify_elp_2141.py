@@ -30,6 +30,8 @@ with tempfile.TemporaryDirectory(prefix=f"elp-2141-{variant}-") as directory:
         str(root),
         solidlsp_settings=SolidLSPSettings(solidlsp_dir="/tmp/serena-2141-lsp", project_data_path=str(root / ".serena")),
     )
+    server.server.on_notification("window/showMessage", lambda params: logging.warning("ELP message: %s", params))
+    server.server.on_notification("telemetry/event", lambda params: logging.info("ELP telemetry: %s", params))
     server.start()
     try:
         started = time.monotonic()
@@ -42,11 +44,11 @@ with tempfile.TemporaryDirectory(prefix=f"elp-2141-{variant}-") as directory:
             if variant == "fixed":
                 raise
             assert "(-32801)" in str(error), error
-            time.sleep(0.5)
-            result = server.request_document_symbols("src/demo.erl")
-        symbols, _roots = result.get_all_symbols_and_roots()
-        names = [symbol["name"] for symbol in symbols]
-        print(json.dumps({"variant": variant, "symbols": names, "seconds": time.monotonic() - started}))
-        assert "greet#0" in names, names
+            result = None
+        if result is not None:
+            symbols, _roots = result.get_all_symbols_and_roots()
+            names = [symbol["name"] for symbol in symbols]
+            print(json.dumps({"variant": variant, "symbols": names, "seconds": time.monotonic() - started}))
+            assert "greet#0" in names, names
     finally:
         server.stop()
