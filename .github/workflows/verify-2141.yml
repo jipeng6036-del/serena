@@ -1,0 +1,48 @@
+name: Verify Erlang stale requests
+on:
+  push:
+    branches: [verify/2141-elp-stale-requests]
+permissions:
+  contents: read
+jobs:
+  erlang:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: erlef/setup-beam@0f75c29430f34bb5af4cce5e3b7f6a8860fca236
+        with:
+          otp-version: '27.3'
+          rebar3-version: '3.24.0'
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081
+        with:
+          python-version: '3.11'
+      - run: uv sync --locked --extra dev
+      - name: Check exact fix
+        run: |
+          git diff --exit-code 8ed4422126394b2aeb23b8405ec46687e069cf90 -- src test uv.lock
+          uv run --no-sync poe lint
+          uv run --no-sync poe type-check
+          uv run --no-sync pytest test/solidlsp/test_content_modified_retry.py test/solidlsp/test_ls_start_cleanup.py -q
+      - name: Verify baseline regression
+        run: |
+          git worktree add --detach /tmp/serena-baseline 96c27473f4402c649f8d01ea7ba00eb0d1061fba
+          cp test/solidlsp/test_content_modified_retry.py /tmp/serena-baseline/test/solidlsp/test_content_modified_retry.py
+          export PYTHONPATH=/tmp/serena-baseline/src:/tmp/serena-baseline
+          cd /tmp/serena-baseline
+          "$GITHUB_WORKSPACE/.venv/bin/python" -c 'import solidlsp; print(solidlsp.__file__)'
+          set +e
+          "$GITHUB_WORKSPACE/.venv/bin/python" -m pytest test/solidlsp/test_content_modified_retry.py -q > /tmp/baseline-unit.log 2>&1
+          result=$?
+          set -e
+          cat /tmp/baseline-unit.log
+          test "$result" -eq 1
+          grep -q '5 failed, 6 passed' /tmp/baseline-unit.log
+      - name: Real ELP cold startup before and after
+        run: |
+          PYTHONPATH=/tmp/serena-baseline/src .venv/bin/python scripts/verify_elp_2141.py baseline
+          PYTHONPATH="$PWD/src" .venv/bin/python scripts/verify_elp_2141.py fixed
+      - name: Existing Erlang integration suite
+        run: uv run --no-sync pytest test/solidlsp/erlang -q -rs
