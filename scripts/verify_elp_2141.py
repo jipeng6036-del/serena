@@ -33,6 +33,8 @@ with tempfile.TemporaryDirectory(prefix=f"elp-2141-{variant}-") as directory:
     server.server.on_notification("window/showMessage", lambda params: logging.warning("ELP message: %s", params))
     server.server.on_notification("telemetry/event", lambda params: logging.info("ELP telemetry: %s", params))
     server.start()
+    file_context = server.open_file("src/demo.erl")
+    file_context.__enter__()
     try:
         started = time.monotonic()
         try:
@@ -51,4 +53,5 @@ with tempfile.TemporaryDirectory(prefix=f"elp-2141-{variant}-") as directory:
             print(json.dumps({"variant": variant, "symbols": names, "seconds": time.monotonic() - started}))
             assert "greet#0" in names, names
     finally:
+        file_context.__exit__(None, None, None)
         server.stop()
