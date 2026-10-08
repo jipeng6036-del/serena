@@ -20,15 +20,13 @@ with tempfile.TemporaryDirectory(prefix=f"elp-2141-{variant}-") as directory:
     (root / "rebar.config").write_text("{erl_opts, [debug_info]}.\n{deps, []}.\n")
     (root / "src" / "demo.app.src").write_text(
         '{application, demo, [{description, "startup verification"}, {vsn, "0.1.0"}, '
-        '{registered, []}, {applications, [kernel, stdlib]}, {env, []}, {modules, []}]}.\n'
+        "{registered, []}, {applications, [kernel, stdlib]}, {env, []}, {modules, []}]}.\n"
     )
     (root / "src" / "demo.erl").write_text("-module(demo).\n-export([greet/0]).\ngreet() -> hello.\n")
     server = SolidLanguageServer.create(
         LanguageServerConfig(LanguageServerId.ERLANG, trace_lsp_communication=True),
         str(root),
-        solidlsp_settings=SolidLSPSettings(
-            solidlsp_dir="/tmp/serena-2141-lsp", project_data_path=str(root / ".serena")
-        ),
+        solidlsp_settings=SolidLSPSettings(solidlsp_dir="/tmp/serena-2141-lsp", project_data_path=str(root / ".serena")),
     )
     with server.start():
         started = time.monotonic()
