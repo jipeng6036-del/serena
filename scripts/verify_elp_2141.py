@@ -36,9 +36,12 @@ with tempfile.TemporaryDirectory(prefix=f"elp-2141-{variant}-") as directory:
         try:
             result = server.request_document_symbols("src/demo.erl")
         except SolidLSPException as error:
-            print(json.dumps({"variant": variant, "first_request": "error", "error": str(error), "cause": repr(error.__cause__)}))
-            if variant == "fixed" or getattr(error.__cause__, "code", None) != -32801:
+            print(
+                json.dumps({"variant": variant, "first_request": "error", "error": str(error), "code": getattr(error.cause, "code", None)})
+            )
+            if variant == "fixed":
                 raise
+            assert "(-32801)" in str(error), error
             time.sleep(0.5)
             result = server.request_document_symbols("src/demo.erl")
         symbols, _roots = result.get_all_symbols_and_roots()
