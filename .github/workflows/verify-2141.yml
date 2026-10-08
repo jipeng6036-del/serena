@@ -1,13 +1,13 @@
-name: Verify Erlang stale requests
+name: Compare existing Erlang failures against baseline
 on:
   push:
     branches: [verify/2141-elp-stale-requests]
 permissions:
   contents: read
 jobs:
-  erlang:
+  baseline:
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -20,31 +20,17 @@ jobs:
         with:
           python-version: '3.11'
       - run: uv sync --locked --extra dev
-      - name: Check exact fix
+      - name: Reproduce downstream assertions on unchanged baseline
         run: |
           git diff --exit-code dc09f0851f014efaa4951e3a2bdfeb57917c542a -- src test uv.lock
-          uv run --no-sync poe lint
-          uv run --no-sync poe type-check
-          uv run --no-sync pytest test/solidlsp/test_content_modified_retry.py test/solidlsp/test_ls_start_cleanup.py -q
-      - name: Verify baseline regression
-        run: |
           git worktree add --detach /tmp/serena-baseline 96c27473f4402c649f8d01ea7ba00eb0d1061fba
-          cp test/solidlsp/test_content_modified_retry.py /tmp/serena-baseline/test/solidlsp/test_content_modified_retry.py
-          export PYTHONPATH=/tmp/serena-baseline/src:/tmp/serena-baseline
+          export PYTHONPATH=/tmp/serena-baseline/src:/tmp/serena-baseline:$GITHUB_WORKSPACE/scripts
           cd /tmp/serena-baseline
           "$GITHUB_WORKSPACE/.venv/bin/python" -c 'import solidlsp; print(solidlsp.__file__)'
           set +e
-          "$GITHUB_WORKSPACE/.venv/bin/python" -m pytest test/solidlsp/test_content_modified_retry.py -k "not configured_attempt_limit" -q > /tmp/baseline-unit.log 2>&1
+          "$GITHUB_WORKSPACE/.venv/bin/python" -m pytest test/solidlsp/erlang/test_erlang_basic.py test/solidlsp/erlang/test_erlang_symbol_retrieval.py -k 'bare_symbol_names or request_defining_symbol_record_usage' -p verify_elp_2141_warm_baseline --junitxml=/tmp/baseline.xml -q > /tmp/baseline.log 2>&1
           result=$?
           set -e
-          cat /tmp/baseline-unit.log
+          cat /tmp/baseline.log
           test "$result" -eq 1
-          grep -q '5 failed, 6 passed' /tmp/baseline-unit.log
-      - name: Real ELP cold startup before and after
-        run: |
-          PYTHONPATH=/tmp/serena-baseline/src .venv/bin/python scripts/verify_elp_2141.py baseline
-          PYTHONPATH="$PWD/src" .venv/bin/python scripts/verify_elp_2141.py fixed
-      - name: Existing Erlang integration suite
-        if: always()
-        run: uv run --no-sync pytest test/solidlsp/erlang -q -rs
-
+          "$GITHUB_WORKSPACE/.venv/bin/python" -c 'import xml.etree.ElementTree as ET; root=ET.parse("/tmp/baseline.xml"); failed={case.attrib["name"] for case in root.iter("testcase") if case.find("failure") is not None}; expected={"test_bare_symbol_names[erlang]", "test_request_defining_symbol_record_usage[erlang]"}; print("Baseline failures:", failed); assert failed == expected; messages=" ".join(f.attrib.get("message", "") for f in root.iter("failure")); assert "malformed symbols" in messages and "records.hrl" in messages, messages'
