@@ -2,6 +2,7 @@
 
 import json
 import logging
+import subprocess
 import sys
 import tempfile
 import time
@@ -23,18 +24,20 @@ with tempfile.TemporaryDirectory(prefix=f"elp-2141-{variant}-") as directory:
         "{registered, []}, {applications, [kernel, stdlib]}, {env, []}, {modules, []}]}.\n"
     )
     (root / "src" / "demo.erl").write_text("-module(demo).\n-export([greet/0]).\ngreet() -> hello.\n")
+    subprocess.run(["rebar3", "compile"], cwd=root, check=True)
     server = SolidLanguageServer.create(
         LanguageServerConfig(LanguageServerId.ERLANG, trace_lsp_communication=True),
         str(root),
         solidlsp_settings=SolidLSPSettings(solidlsp_dir="/tmp/serena-2141-lsp", project_data_path=str(root / ".serena")),
     )
-    with server.start():
+    server.start()
+    try:
         started = time.monotonic()
         try:
             result = server.request_document_symbols("src/demo.erl")
         except SolidLSPException as error:
-            print(json.dumps({"variant": variant, "first_request": "error", "error": str(error)}))
-            if variant == "fixed":
+            print(json.dumps({"variant": variant, "first_request": "error", "error": str(error), "cause": repr(error.__cause__)}))
+            if variant == "fixed" or getattr(error.__cause__, "code", None) != -32801:
                 raise
             time.sleep(0.5)
             result = server.request_document_symbols("src/demo.erl")
@@ -42,3 +45,5 @@ with tempfile.TemporaryDirectory(prefix=f"elp-2141-{variant}-") as directory:
         names = [symbol["name"] for symbol in symbols]
         print(json.dumps({"variant": variant, "symbols": names, "seconds": time.monotonic() - started}))
         assert "greet#0" in names, names
+    finally:
+        server.stop()
