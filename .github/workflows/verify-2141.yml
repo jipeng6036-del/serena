@@ -45,4 +45,5 @@ jobs:
           PYTHONPATH=/tmp/serena-baseline/src .venv/bin/python scripts/verify_elp_2141.py baseline
           PYTHONPATH="$PWD/src" .venv/bin/python scripts/verify_elp_2141.py fixed
       - name: Existing Erlang integration suite
+        if: always()
         run: uv run --no-sync pytest test/solidlsp/erlang -q -rs

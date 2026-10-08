@@ -13,7 +13,7 @@ from solidlsp.ls_config import LanguageServerConfig, LanguageServerId
 from solidlsp.ls_exceptions import SolidLSPException
 from solidlsp.settings import SolidLSPSettings
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 variant = sys.argv[1]
 with tempfile.TemporaryDirectory(prefix=f"elp-2141-{variant}-") as directory:
     root = Path(directory)
